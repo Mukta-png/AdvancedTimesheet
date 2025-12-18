@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bi-Weekly Timesheet</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      padding: 20px;
+    }
+    .sheet-container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 20px 24px 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 6px 8px;
+      font-size: 14px;
+    }
+    th {
+      background: #e8e8e8;
+      text-align: left;
+    }
+    .no-border td {
+      border: none;
+      padding: 4px 4px;
+    }
+    input[type="text"],
+    input[type="date"],
+    input[type="time"],
+    input[type="number"],
+    select {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      padding: 3px 4px;
+      font-size: 13px;
+    }
+    input[readonly] {
+      background-color: #f7f7f7;
+    }
+    .total-row td {
+      font-weight: bold;
+      background: #fafafa;
+    }
+  </style>
+</head>
+<body>
+
+<div class="sheet-container">
+  <h1>Bi-Weekly Timesheet</h1>
+
+  <!-- Header info (like the Excel template) -->
+  <table class="no-border">
+    <tr>
+      <td style="width: 20%;"><strong>Week Starting:</strong></td>
+      <td style="width: 40%;">
+        <!-- This is auto-filled based on the period selection -->
+        <input type="text" id="weekStartingDisplay" readonly />
+      </td>
+      <td style="width: 15%;"><strong>Period:</strong></td>
+      <td style="width: 25%;">
+        <!-- Dropdown: Jan 1st Half, Jan 2nd Half, ..., Dec 2nd Half -->
+        <select id="weekPeriod">
+          <option value="0-1">Jan 1st Half</option>
+          <option value="0-2">Jan 2nd Half</option>
+          <option value="1-1">Feb 1st Half</option>
+          <option value="1-2">Feb 2nd Half</option>
+          <option value="2-1">Mar 1st Half</option>
+          <option value="2-2">Mar 2nd Half</option>
+          <option value="3-1">Apr 1st Half</option>
+          <option value="3-2">Apr 2nd Half</option>
+          <option value="4-1">May 1st Half</option>
+          <option value="4-2">May 2nd Half</option>
+          <option value="5-1">Jun 1st Half</option>
+          <option value="5-2">Jun 2nd Half</option>
+          <option value="6-1">Jul 1st Half</option>
+          <option value="6-2">Jul 2nd Half</option>
+          <option value="7-1">Aug 1st Half</option>
+          <option value="7-2">Aug 2nd Half</option>
+          <option value="8-1">Sep 1st Half</option>
+          <option value="8-2">Sep 2nd Half</option>
+          <option value="9-1">Oct 1st Half</option>
+          <option value="9-2">Oct 2nd Half</option>
+          <option value="10-1">Nov 1st Half</option>
+          <option value="10-2">Nov 2nd Half</option>
+          <option value="11-1">Dec 1st Half</option>
+          <option value="11-2">Dec 2nd Half</option>
+        </select>
+      </td>
+    </tr>
+    <tr>
+      <td><strong>Employee Name:</strong></td>
+      <td><input type="text" id="employeeName" /></td>
+      <td><strong>Title:</strong></td>
+      <td><input type="text" id="employeeTitle" /></td>
+    </tr>
+    <tr>
+      <td><strong>Supervisor Name:</strong></td>
+      <td><input type="text" id="supervisorName" /></td>
+      <td></td>
+      <td></td>
+    </tr>
+  </table>
+
+  <!-- Timesheet grid -->
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 36%;">Day of the month</th>
+        <th style="width: 16%;">Time In</th>
+        <th style="width: 16%;">Time Out</th>
+        <th style="width: 16%;">Lunch Break (hours)</th>
+        <th style="width: 16%;">Total Hours</th>
+      </tr>
+    </thead>
+    <tbody id="timesheetBody">
+      <!-- rows will be populated by JavaScript -->
+    </tbody>
+    <tfoot>
+      <tr class="total-row">
+        <td>Total:</td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td><span id="totalHours">0.00</span></td>
+      </tr>
+    </tfoot>
+  </table>
+
+</div>
+
+<script>
+  const monthNames = [
+    "January","February","March","April","May","June",
+    "July","August","September","October","November","December"
+  ];
+
+  function ordinalSuffix(n) {
+    const j = n % 10, k = n % 100;
+    if (j === 1 && k !== 11) return "st";
+    if (j === 2 && k !== 12) return "nd";
+    if (j === 3 && k !== 13) return "rd";
+    return "th";
+  }
+
+  function createRow(dateStr) {
+    const tr = document.createElement("tr");
+
+    // Date cell (text only)
+    const tdDate = document.createElement("td");
+    tdDate.textContent = dateStr;
+    tr.appendChild(tdDate);
+
+    // Time In
+    const tdIn = document.createElement("td");
+    const inputIn = document.createElement("input");
+    inputIn.type = "time";
+    inputIn.className = "time-in";
+    tdIn.appendChild(inputIn);
+    tr.appendChild(tdIn);
+
+    // Time Out
+    const tdOut = document.createElement("td");
+    const inputOut = document.createElement("input");
+    inputOut.type = "time";
+    inputOut.className = "time-out";
+    tdOut.appendChild(inputOut);
+    tr.appendChild(tdOut);
+
+    // Lunch Break (hours)
+    const tdLunch = document.createElement("td");
+    const inputLunch = document.createElement("input");
+    inputLunch.type = "number";
+    inputLunch.min = "0";
+    inputLunch.step = "0.25";
+    inputLunch.className = "lunch";
+    tdLunch.appendChild(inputLunch);
+    tr.appendChild(tdLunch);
+
+    // Total hours (calculated)
+    const tdTotal = document.createElement("td");
+    const inputTotal = document.createElement("input");
+    inputTotal.type = "number";
+    inputTotal.step = "0.01";
+    inputTotal.readOnly = true;
+    inputTotal.className = "row-total";
+    tdTotal.appendChild(inputTotal);
+    tr.appendChild(tdTotal);
+
+    // Recalculate whenever any input changes
+    [inputIn, inputOut, inputLunch].forEach(el => {
+      el.addEventListener("change", updateTotals);
+    });
+
+    return tr;
+  }
+
+  function populateDays() {
+    const select = document.getElementById("weekPeriod");
+    const value = select.value; // e.g. "0-1"
+    const parts = value.split("-");
+    const monthIndex = parseInt(parts[0], 10);  // 0 = Jan
+    const half = parseInt(parts[1], 10);        // 1 or 2
+
+    const year = new Date().getFullYear();
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+
+    const startDay = half === 1 ? 1 : 16;
+    const endDay = half === 1 ? 15 : daysInMonth;
+
+    const tbody = document.getElementById("timesheetBody");
+    tbody.innerHTML = "";
+
+    for (let day = startDay; day <= endDay; day++) {
+      const dateStr =
+        monthNames[monthIndex] + " " + day + ordinalSuffix(day) + ", " + year;
+      const row = createRow(dateStr);
+      tbody.appendChild(row);
+    }
+
+    // Set the Week Starting field to the first day of the chosen period
+    const startingLabel =
+      monthNames[monthIndex] + " " +
+      startDay + ordinalSuffix(startDay) + ", " + year;
+    document.getElementById("weekStartingDisplay").value = startingLabel;
+
+    updateTotals();
+  }
+
+  function updateTotals() {
+    let totalAll = 0;
+
+    const rows = document.querySelectorAll("#timesheetBody tr");
+    rows.forEach(row => {
+      const timeInEl = row.querySelector(".time-in");
+      const timeOutEl = row.querySelector(".time-out");
+      const lunchEl = row.querySelector(".lunch");
+      const totalEl = row.querySelector(".row-total");
+
+      const timeIn = timeInEl.value;
+      const timeOut = timeOutEl.value;
+      const lunch = parseFloat(lunchEl.value) || 0;
+
+      if (timeIn && timeOut) {
+        const [inH, inM] = timeIn.split(":").map(Number);
+        const [outH, outM] = timeOut.split(":").map(Number);
+
+        let minutes = (outH * 60 + outM) - (inH * 60 + inM);
+        minutes -= lunch * 60;
+
+        if (minutes < 0) minutes = 0;
+
+        const hours = minutes / 60;
+        totalEl.value = hours.toFixed(2);
+        totalAll += hours;
+      } else {
+        totalEl.value = "";
+      }
+    });
+
+    document.getElementById("totalHours").textContent = totalAll.toFixed(2);
+  }
+
+  // Initialize on load
+  document.addEventListener("DOMContentLoaded", () => {
+    populateDays();
+    document.getElementById("weekPeriod")
+      .addEventListener("change", populateDays);
+  });
+</script>
+
+</body>
+</html>
