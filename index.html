@@ -59,6 +59,39 @@
       font-weight: bold;
       background: #fafafa;
     }
+    .buttons {
+      margin-top: 15px;
+      text-align: right;
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+    button {
+      padding: 8px 16px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .btn-print {
+      background-color: #777;
+      color: #fff;
+    }
+    .btn-submit {
+      background-color: #0073e6;
+      color: #fff;
+    }
+    @media print {
+      .buttons {
+        display: none;
+      }
+      body {
+        background: #fff;
+      }
+      .sheet-container {
+        box-shadow: none;
+      }
+    }
   </style>
 </head>
 <body>
@@ -66,16 +99,11 @@
 <div class="sheet-container">
   <h1>Bi-Weekly Timesheet</h1>
 
-  <!-- Header info (like the Excel template) -->
+  <!-- Header info -->
   <table class="no-border">
     <tr>
-      <td style="width: 20%;"><strong>Week Starting:</strong></td>
-      <td style="width: 40%;">
-        <!-- This is auto-filled based on the period selection -->
-        <input type="text" id="weekStartingDisplay" readonly />
-      </td>
-      <td style="width: 15%;"><strong>Period:</strong></td>
-      <td style="width: 25%;">
+      <td style="width: 20%;"><strong>Period:</strong></td>
+      <td style="width: 30%;">
         <!-- Dropdown: Jan 1st Half, Jan 2nd Half, ..., Dec 2nd Half -->
         <select id="weekPeriod">
           <option value="0-1">Jan 1st Half</option>
@@ -104,6 +132,8 @@
           <option value="11-2">Dec 2nd Half</option>
         </select>
       </td>
+      <td style="width: 20%;"><strong>Send To Email:</strong></td>
+      <td style="width: 30%;"><input type="text" id="recipientEmail" placeholder="supervisor@example.com" /></td>
     </tr>
     <tr>
       <td><strong>Employee Name:</strong></td>
@@ -114,8 +144,8 @@
     <tr>
       <td><strong>Supervisor Name:</strong></td>
       <td><input type="text" id="supervisorName" /></td>
-      <td></td>
-      <td></td>
+      <td><strong>Supervisor Email (optional):</strong></td>
+      <td><input type="text" id="supervisorEmail" /></td>
     </tr>
   </table>
 
@@ -126,12 +156,12 @@
         <th style="width: 36%;">Day of the month</th>
         <th style="width: 16%;">Time In</th>
         <th style="width: 16%;">Time Out</th>
-        <th style="width: 16%;">Lunch Break (hours)</th>
+        <th style="width: 16%;">Lunch Break (minutes)</th>
         <th style="width: 16%;">Total Hours</th>
       </tr>
     </thead>
     <tbody id="timesheetBody">
-      <!-- rows will be populated by JavaScript -->
+      <!-- rows populated by JavaScript -->
     </tbody>
     <tfoot>
       <tr class="total-row">
@@ -144,6 +174,10 @@
     </tfoot>
   </table>
 
+  <div class="buttons">
+    <button class="btn-print" type="button" onclick="printTimesheet()">Print</button>
+    <button class="btn-submit" type="button" onclick="submitTimesheet()">Submit & Email</button>
+  </div>
 </div>
 
 <script>
@@ -163,7 +197,7 @@
   function createRow(dateStr) {
     const tr = document.createElement("tr");
 
-    // Date cell (text only)
+    // Date cell (label only)
     const tdDate = document.createElement("td");
     tdDate.textContent = dateStr;
     tr.appendChild(tdDate);
@@ -184,12 +218,12 @@
     tdOut.appendChild(inputOut);
     tr.appendChild(tdOut);
 
-    // Lunch Break (hours)
+    // Lunch Break (minutes)
     const tdLunch = document.createElement("td");
     const inputLunch = document.createElement("input");
     inputLunch.type = "number";
     inputLunch.min = "0";
-    inputLunch.step = "0.25";
+    inputLunch.step = "5";
     inputLunch.className = "lunch";
     tdLunch.appendChild(inputLunch);
     tr.appendChild(tdLunch);
@@ -204,7 +238,6 @@
     tdTotal.appendChild(inputTotal);
     tr.appendChild(tdTotal);
 
-    // Recalculate whenever any input changes
     [inputIn, inputOut, inputLunch].forEach(el => {
       el.addEventListener("change", updateTotals);
     });
@@ -214,10 +247,10 @@
 
   function populateDays() {
     const select = document.getElementById("weekPeriod");
-    const value = select.value; // e.g. "0-1"
+    const value = select.value; // "0-1"
     const parts = value.split("-");
-    const monthIndex = parseInt(parts[0], 10);  // 0 = Jan
-    const half = parseInt(parts[1], 10);        // 1 or 2
+    const monthIndex = parseInt(parts[0], 10); // 0 = Jan
+    const half = parseInt(parts[1], 10);       // 1 or 2
 
     const year = new Date().getFullYear();
     const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
@@ -235,12 +268,6 @@
       tbody.appendChild(row);
     }
 
-    // Set the Week Starting field to the first day of the chosen period
-    const startingLabel =
-      monthNames[monthIndex] + " " +
-      startDay + ordinalSuffix(startDay) + ", " + year;
-    document.getElementById("weekStartingDisplay").value = startingLabel;
-
     updateTotals();
   }
 
@@ -256,14 +283,14 @@
 
       const timeIn = timeInEl.value;
       const timeOut = timeOutEl.value;
-      const lunch = parseFloat(lunchEl.value) || 0;
+      const lunchMinutes = parseFloat(lunchEl.value) || 0;
 
       if (timeIn && timeOut) {
         const [inH, inM] = timeIn.split(":").map(Number);
         const [outH, outM] = timeOut.split(":").map(Number);
 
         let minutes = (outH * 60 + outM) - (inH * 60 + inM);
-        minutes -= lunch * 60;
+        minutes -= lunchMinutes;
 
         if (minutes < 0) minutes = 0;
 
@@ -278,7 +305,76 @@
     document.getElementById("totalHours").textContent = totalAll.toFixed(2);
   }
 
-  // Initialize on load
+  function printTimesheet() {
+    window.print();
+  }
+
+  function submitTimesheet() {
+    updateTotals(); // make sure totals are fresh
+
+    const period = document.getElementById("weekPeriod").options[
+      document.getElementById("weekPeriod").selectedIndex
+    ].text;
+    const employeeName = document.getElementById("employeeName").value || "";
+    const employeeTitle = document.getElementById("employeeTitle").value || "";
+    const supervisorName = document.getElementById("supervisorName").value || "";
+    const supervisorEmail = document.getElementById("supervisorEmail").value || "";
+    const recipient = (document.getElementById("recipientEmail").value || "").trim();
+
+    if (!recipient) {
+      alert("Please enter the email address to send this timesheet to.");
+      return;
+    }
+
+    const totalHours = document.getElementById("totalHours").textContent;
+
+    // Build a simple text summary for the email body
+    let body = "";
+    body += "Timesheet Period: " + period + "\\n";
+    body += "Employee: " + employeeName + "\\n";
+    body += "Title: " + employeeTitle + "\\n";
+    body += "Supervisor: " + supervisorName + "\\n";
+    if (supervisorEmail) {
+      body += "Supervisor Email: " + supervisorEmail + "\\n";
+    }
+    body += "\\nDay-by-day details:\\n";
+
+    const rows = document.querySelectorAll("#timesheetBody tr");
+    rows.forEach(row => {
+      const date = row.cells[0].textContent;
+      const timeIn = row.querySelector(".time-in").value || "";
+      const timeOut = row.querySelector(".time-out").value || "";
+      const lunchMinutes = row.querySelector(".lunch").value || "0";
+      const rowTotal = row.querySelector(".row-total").value || "0";
+      if (timeIn || timeOut || rowTotal !== "0") {
+        body += date + " | In: " + timeIn +
+                " | Out: " + timeOut +
+                " | Lunch (min): " + lunchMinutes +
+                " | Hours: " + rowTotal + "\\n";
+      }
+    });
+
+    body += "\\nTotal Hours: " + totalHours + "\\n";
+
+    const subject = "Timesheet - " + (employeeName || "Employee") +
+      " - " + period;
+
+    // Always CC process@360customer.com
+    let cc = "process@360customer.com";
+    if (supervisorEmail) {
+      cc += "," + supervisorEmail;
+    }
+
+    const mailtoLink =
+      "mailto:" + encodeURIComponent(recipient) +
+      "?cc=" + encodeURIComponent(cc) +
+      "&subject=" + encodeURIComponent(subject) +
+      "&body=" + encodeURIComponent(body);
+
+    // Open email client
+    window.location.href = mailtoLink;
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     populateDays();
     document.getElementById("weekPeriod")
